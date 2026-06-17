@@ -1,1 +1,977 @@
-# scaling-pancake
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>YISリマインダー</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+:root {
+  --blue-900: #1a2f5a; --blue-800: #234176; --blue-700: #2d5499;
+  --blue-600: #3a6bc4; --blue-500: #4f86e8; --blue-400: #76a4f0;
+  --blue-300: #a8c8f7; --blue-200: #cfe0fb; --blue-100: #e3edfd; --blue-50: #f0f6ff;
+  --green: #34c79a; --red: #f47171; --amber: #f7b955;
+  --gray-900: #2a3142; --gray-700: #4a5568; --gray-600: #5a6678; --gray-500: #7c8699;
+  --gray-300: #cdd5e3; --gray-200: #e2e8f2; --gray-100: #eef2f8;
+  --white: #ffffff;
+  --shadow: 0 4px 18px rgba(79,134,232,0.12);
+  --shadow-sm: 0 2px 10px rgba(79,134,232,0.1);
+}
+html, body {
+  width: 100%; height: 100%;
+  font-family: -apple-system, 'Hiragino Maru Gothic ProN', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+  background: var(--blue-50); color: var(--gray-900);
+  overflow: hidden;
+}
+#app {
+  display: flex; flex-direction: column;
+  width: 100%; height: 100vh; height: 100dvh;
+  background: linear-gradient(180deg, #f0f6ff 0%, #e8f1ff 100%);
+  max-width: 430px; margin: 0 auto;
+  position: relative; overflow: hidden;
+}
+.filter-bar {
+  background: white; border-bottom: 1px solid var(--gray-100);
+  padding: 10px 12px; flex-shrink: 0; display: none;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
+}
+.filter-bar.visible { display: block; }
+.filter-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.filter-row::-webkit-scrollbar { display: none; }
+.fchip {
+  padding: 7px 15px; border-radius: 20px; font-size: 12px; font-weight: 700;
+  border: 2px solid var(--blue-100); background: white; cursor: pointer;
+  white-space: nowrap; flex-shrink: 0; color: var(--gray-600);
+  -webkit-appearance: none;
+}
+.fchip.on { background: var(--blue-500); color: white; border-color: var(--blue-500); }
+
+.screens {
+  flex: 1; min-height: 0;
+  overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.screen {
+  padding: 14px 14px 26px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+  display: none; flex-direction: column; gap: 12px;
+}
+.screen.on { display: flex; }
+
+.bottom-nav {
+  background: white; border-top: 1px solid var(--gray-100);
+  display: flex; flex-shrink: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -3px 16px rgba(79,134,232,0.1);
+  border-radius: 22px 22px 0 0;
+}
+.nav-btn {
+  flex: 1; border: none; background: none; cursor: pointer;
+  padding: 11px 4px 13px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+}
+.nav-icon { font-size: 23px; transition: transform 0.2s; }
+.nav-label { font-size: 10px; font-weight: 700; color: var(--gray-500); }
+.nav-btn.on .nav-label { color: var(--blue-500); }
+.nav-btn.on .nav-icon { transform: translateY(-2px) scale(1.1); }
+
+/* ── マスコット挨拶カード ── */
+.greet-card {
+  background: linear-gradient(135deg, #ffffff, var(--blue-50));
+  border-radius: 20px; padding: 13px 15px;
+  display: flex; align-items: center; gap: 13px;
+  box-shadow: var(--shadow); border: 2px solid white;
+}
+.mascot {
+  width: 54px; height: 54px; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--blue-400), var(--blue-600));
+  border-radius: 16px; display: flex; align-items: center; justify-content: center;
+  animation: bob 3.4s ease-in-out infinite;
+  box-shadow: 0 4px 12px rgba(79,134,232,0.3);
+}
+.mascot svg { width: 36px; height: 36px; display: block; }
+@keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+.greet-text { flex: 1; min-width: 0; }
+.greet-hi { font-size: 13px; font-weight: 800; color: var(--blue-700); margin-bottom: 3px; }
+.greet-msg { font-size: 12px; color: var(--gray-600); line-height: 1.5; }
+.next-task {
+  margin-top: 7px; background: white; border-radius: 12px;
+  padding: 8px 10px; display: flex; align-items: center; gap: 8px;
+  border-left: 4px solid var(--blue-400); box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+.next-task-label { font-size: 9px; font-weight: 800; color: var(--blue-500); letter-spacing: 0.3px; }
+.next-task-title { font-size: 12px; font-weight: 800; color: var(--gray-900); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.next-task-due { font-size: 11px; font-weight: 800; white-space: nowrap; flex-shrink: 0; }
+.next-task-body { flex: 1; min-width: 0; }
+
+.cal-month-bar {
+  background: linear-gradient(135deg, var(--blue-600), var(--blue-400));
+  border-radius: 18px; padding: 11px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  box-shadow: var(--shadow-sm);
+}
+.mnav { background: rgba(255,255,255,0.25); border: none; border-radius: 12px;
+  color: white; width: 32px; height: 32px; font-size: 18px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; }
+.mtitle { color: white; font-size: 17px; font-weight: 800; }
+.cal-card { background: white; border-radius: 20px; box-shadow: var(--shadow); padding: 8px; }
+.dow-row { display: grid; grid-template-columns: repeat(7,1fr); }
+.dow { text-align: center; padding: 6px 0; font-size: 10px; font-weight: 800; color: var(--blue-600); }
+.dow:first-child { color: var(--red); }
+.dow:last-child  { color: var(--blue-400); }
+.days-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; }
+.cday {
+  min-height: 42px; border-radius: 12px;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  padding: 5px 1px 3px; cursor: pointer; position: relative;
+}
+.cday:active { background: var(--blue-50); }
+.cday.other { pointer-events: none; }
+.cday.other .dnum { color: var(--gray-300); }
+.cday.sun .dnum   { color: var(--red); }
+.cday.sat .dnum   { color: var(--blue-400); }
+.dnum {
+  font-size: 12px; font-weight: 600; color: var(--gray-700); line-height: 1;
+  width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+}
+.cday.selected { background: var(--blue-100); }
+.cday.selected .dnum { background: var(--blue-300); color: white; }
+.cday.today .dnum { background: var(--blue-500); color: white; font-weight: 800; }
+.ddots { display: flex; gap: 2px; margin-top: 3px; flex-wrap: wrap; justify-content: center; min-height: 6px; }
+.ddot  { width: 6px; height: 6px; border-radius: 50%; }
+.add-btn {
+  background: linear-gradient(135deg, var(--blue-500), var(--blue-700));
+  color: white; border: none; border-radius: 18px;
+  padding: 15px; font-size: 15px; font-weight: 800; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  box-shadow: 0 5px 18px rgba(79,134,232,0.35); width: 100%;
+}
+.sec-label { font-size: 12px; font-weight: 800; color: var(--blue-700); padding: 2px 4px;
+  display: flex; align-items: center; gap: 6px; }
+.sec-label::before { content: ''; width: 4px; height: 15px; background: var(--blue-400); border-radius: 3px; }
+
+.day-panel {
+  background: white; border-radius: 20px; padding: 14px 16px;
+  box-shadow: var(--shadow); border: 2px solid var(--blue-100);
+  display: none; flex-direction: column; gap: 10px;
+}
+.day-panel.visible { display: flex; animation: popIn 0.25s ease both; }
+@keyframes popIn { from{transform:scale(0.96);opacity:0} to{transform:scale(1);opacity:1} }
+.dp-hdr { display: flex; align-items: center; justify-content: space-between; }
+.dp-date { font-size: 15px; font-weight: 800; color: var(--blue-800); }
+.dp-close { background: var(--blue-50); border: none; border-radius: 50%; width: 26px; height: 26px;
+  font-size: 14px; cursor: pointer; color: var(--gray-600); display: flex; align-items: center; justify-content: center; }
+.dp-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 0; }
+.dp-empty-emoji { font-size: 34px; }
+.dp-empty-txt { font-size: 12px; color: var(--gray-500); font-weight: 600; }
+.dp-add {
+  background: var(--blue-50); color: var(--blue-600); border: 2px dashed var(--blue-300);
+  border-radius: 14px; padding: 11px; font-size: 13px; font-weight: 700; cursor: pointer;
+  font-family: inherit; width: 100%;
+}
+.dp-task {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; background: var(--blue-50); border-radius: 14px;
+  border-left: 4px solid var(--blue-400);
+}
+.dp-task-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.dp-task-body { flex: 1; }
+.dp-task-title { font-size: 13px; font-weight: 700; color: var(--gray-900); }
+.dp-task-sub { font-size: 11px; color: var(--gray-500); margin-top: 2px; }
+
+.tcard {
+  background: white; border-radius: 16px; padding: 13px 15px;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: var(--shadow-sm); border-left: 5px solid var(--blue-500); cursor: pointer;
+}
+.tcard-body { flex: 1; }
+.tcard-title { font-size: 14px; font-weight: 800; margin-bottom: 5px; }
+.tcard-meta  { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+.badge { font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 20px; background: var(--blue-100); color: var(--blue-700); }
+.tchk {
+  width: 26px; height: 26px; border-radius: 9px; border: 2.5px solid var(--gray-300);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  flex-shrink: 0; transition: all 0.2s;
+}
+.tchk.done { background: var(--green); border-color: var(--green); }
+.tchk.done::after { content: '✓'; color: white; font-size: 15px; font-weight: 800; }
+.form-card { background: white; border-radius: 20px; padding: 17px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 15px; }
+.fsec-title { font-size: 14px; font-weight: 800; color: var(--blue-700); display: flex; align-items: center; gap: 7px; }
+.fsec-title::before { content: ''; width: 4px; height: 16px; background: var(--blue-400); border-radius: 3px; }
+.fgroup { display: flex; flex-direction: column; gap: 7px; }
+.flabel { font-size: 12px; font-weight: 700; color: var(--gray-700); }
+.flabel-row { display: flex; align-items: center; justify-content: space-between; }
+.edit-link { font-size: 11px; font-weight: 800; color: var(--blue-500); background: none; border: none; cursor: pointer; padding: 2px 4px; }
+.finput, .fselect, .ftextarea {
+  width: 100%; padding: 12px 14px;
+  border: 2px solid var(--blue-100); border-radius: 14px;
+  font-size: 15px; font-family: inherit; color: var(--gray-900);
+  background: var(--blue-50); outline: none;
+  -webkit-appearance: none; appearance: none;
+}
+.finput:focus, .fselect:focus, .ftextarea:focus { border-color: var(--blue-400); background: white; }
+.fselect {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237c8699' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center;
+  background-size: 12px; padding-right: 38px; background-color: var(--blue-50);
+}
+.ftextarea { resize: vertical; min-height: 74px; }
+.color-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.cchip { width: 34px; height: 34px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+.cchip.on { border-color: var(--gray-700); transform: scale(1.15); }
+.cchip.on::after { content: '✓'; color: white; font-size: 14px; font-weight: 800; }
+.rchips, .repchips { display: flex; gap: 8px; flex-wrap: wrap; }
+.rchip { padding: 9px 15px; border-radius: 20px; font-size: 12px; font-weight: 700; border: 2px solid var(--blue-100); background: white; cursor: pointer; font-family: inherit; color: var(--gray-700); }
+.rchip.on { background: var(--blue-500); color: white; border-color: var(--blue-500); }
+.repchip { padding: 8px 14px; border-radius: 12px; font-size: 12px; font-weight: 700; border: 2px solid var(--blue-100); background: white; cursor: pointer; font-family: inherit; color: var(--gray-700); }
+.repchip.on { background: var(--blue-100); color: var(--blue-700); border-color: var(--blue-400); }
+.submit-btn {
+  background: linear-gradient(135deg, var(--blue-500), var(--blue-700));
+  color: white; border: none; border-radius: 18px; padding: 16px;
+  font-size: 16px; font-weight: 800; font-family: inherit; cursor: pointer; width: 100%;
+  box-shadow: 0 5px 18px rgba(79,134,232,0.35);
+}
+.custom-wrap { margin-top: 8px; display: none; flex-direction: column; gap: 8px; }
+.custom-wrap.visible { display: flex; }
+.save-prompt { background: var(--blue-50); border: 2px solid var(--blue-200); border-radius: 14px; padding: 13px 15px; display: none; flex-direction: column; gap: 8px; }
+.save-prompt.visible { display: flex; }
+.save-prompt-title { font-size: 13px; font-weight: 800; color: var(--blue-800); }
+.save-prompt-sub   { font-size: 11px; color: var(--gray-500); }
+.save-btns { display: flex; gap: 8px; }
+.save-yes { flex:1; padding:10px; background:var(--blue-500); color:white; border:none; border-radius:12px; font-size:13px; font-weight:800; font-family:inherit; cursor:pointer; }
+.save-no  { flex:1; padding:10px; background:var(--gray-100); color:var(--gray-700); border:none; border-radius:12px; font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; }
+.lsec { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.lsec-hdr { display: flex; align-items: center; gap: 8px; padding: 6px 4px; }
+.lsec-title { font-size: 11px; font-weight: 800; color: var(--gray-500); letter-spacing: 0.5px; }
+.lsec-cnt { background: var(--blue-100); color: var(--blue-700); font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 20px; }
+.litem {
+  background: white; border-radius: 16px; padding: 13px 15px;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: var(--shadow-sm); border-left: 5px solid var(--blue-400); cursor: pointer;
+}
+.litem.done { opacity: 0.6; }
+.litem.done .li-title { text-decoration: line-through; color: var(--gray-500); }
+.lichk { width: 24px; height: 24px; border-radius: 8px; border: 2.5px solid var(--gray-300); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.2s; }
+.lichk.done { background: var(--green); border-color: var(--green); }
+.lichk.done::after { content: '✓'; color: white; font-size: 13px; font-weight: 800; }
+.li-body { flex: 1; }
+.li-title { font-size: 14px; font-weight: 800; margin-bottom: 5px; }
+.li-meta  { display: flex; gap: 7px; flex-wrap: wrap; }
+.lbadge { font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 20px; }
+.lbadge.soon { background: #ffe0e0; color: #d14545; }
+.lbadge.week { background: #fff0d6; color: #c4862a; }
+.lbadge.ok   { background: var(--blue-100); color: var(--blue-700); }
+.lbadge.subj { background: var(--gray-100); color: var(--gray-600); }
+.list-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 0; }
+.list-empty-emoji { font-size: 48px; }
+.list-empty-txt { font-size: 13px; color: var(--gray-500); font-weight: 700; }
+.modal-overlay { display: none; position: fixed; inset: 0; z-index: 200; background: rgba(26,47,90,0.45); align-items: flex-end; justify-content: center; }
+.modal-overlay.visible { display: flex; }
+.modal-sheet { background: white; border-radius: 26px 26px 0 0; width: 100%; max-width: 430px; padding: 22px 17px calc(env(safe-area-inset-bottom,0px) + 36px); max-height: 80vh; overflow-y: auto; }
+.modal-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.modal-title { font-size: 16px; font-weight: 900; color: var(--blue-900); }
+.modal-close { background: var(--gray-100); border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.subj-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 15px; background: var(--blue-50); border-radius: 14px; border: 2px solid var(--gray-100); margin-bottom: 8px; }
+.subj-name { font-size: 14px; font-weight: 700; color: var(--gray-800); }
+.sdel-btn { background: #ffe0e0; border: none; border-radius: 10px; color: #d14545; font-size: 12px; font-weight: 800; padding: 6px 12px; cursor: pointer; font-family: inherit; }
+.celebrate { position: fixed; inset: 0; z-index: 300; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.94); opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+.celebrate.visible { opacity: 1; pointer-events: auto; }
+.cel-emoji { font-size: 80px; animation: celPop 0.6s ease-in-out infinite; }
+@keyframes celPop { 0%,100%{transform:translateY(0) scale(1) rotate(-3deg)} 50%{transform:translateY(-10px) scale(1.1) rotate(3deg)} }
+.cel-title { font-size: 24px; font-weight: 900; color: var(--blue-700); margin-top: 10px; }
+.cel-sub   { font-size: 14px; color: var(--gray-500); margin-top: 6px; }
+.confetti  { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.cp { position: absolute; width: 9px; height: 9px; border-radius: 2px; animation: fall 1.2s ease-in forwards; }
+@keyframes fall { 0%{ transform: translateY(-10px) rotate(0deg); opacity:1; } 100%{ transform: translateY(110vh) rotate(720deg); opacity:0; } }
+.toast { position: fixed; bottom: 92px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--blue-800); color: white; padding: 11px 22px; border-radius: 24px; font-size: 13px; font-weight: 700; white-space: nowrap; opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 400; }
+.toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+@keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.screen.on > * { animation: slideUp 0.3s ease both; }
+.screen.on > *:nth-child(1){animation-delay:.02s}
+.screen.on > *:nth-child(2){animation-delay:.06s}
+.screen.on > *:nth-child(3){animation-delay:.10s}
+.screen.on > *:nth-child(4){animation-delay:.14s}
+.screen.on > *:nth-child(5){animation-delay:.18s}
+.screen.on > *:nth-child(6){animation-delay:.22s}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="filter-bar" id="filter-bar">
+    <div class="filter-row">
+      <div class="fchip on"  onclick="setFilter(this,'すべて')">すべて</div>
+      <div class="fchip"     onclick="setFilter(this,'未完了')">未完了</div>
+      <div class="fchip"     onclick="setFilter(this,'今週')">今週</div>
+      <div class="fchip"     onclick="setFilter(this,'完了済み')">完了済み</div>
+      <div class="fchip"     onclick="setFilter(this,'英語')">英語</div>
+      <div class="fchip"     onclick="setFilter(this,'数学')">数学</div>
+    </div>
+  </div>
+
+  <div class="screens">
+
+    <div class="screen on" id="scr-cal">
+      <div class="greet-card">
+        <div class="mascot">
+          <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" fill="white">
+            <path d="M14 22 L11 7 L24 17 Q32 14 40 17 L53 7 L50 22 Q57 30 57 40 Q57 56 32 56 Q7 56 7 40 Q7 30 14 22 Z"/>
+            <circle cx="23" cy="35" r="3.4" fill="#234176"/>
+            <circle cx="41" cy="35" r="3.4" fill="#234176"/>
+            <path d="M29 43 Q32 45 35 43" stroke="#234176" stroke-width="2" fill="none" stroke-linecap="round"/>
+            <path d="M32 40 L30 43 M32 40 L34 43" stroke="#234176" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+            <path d="M17 39 L9 37 M17 42 L9 42 M47 39 L55 37 M47 42 L55 42" stroke="white" stroke-width="1.4" stroke-linecap="round" opacity="0.85"/>
+          </svg>
+        </div>
+        <div class="greet-text">
+          <div class="greet-hi" id="greet-hi">今日もお疲れ様！🌟</div>
+          <div class="greet-msg" id="greet-msg">無理せず、いっしょに課題がんばろう！</div>
+          <div id="next-task-wrap"></div>
+        </div>
+      </div>
+
+      <div class="cal-month-bar">
+        <button class="mnav" onclick="changeMonth(-1)">‹</button>
+        <span class="mtitle" id="month-title"></span>
+        <button class="mnav" onclick="changeMonth(1)">›</button>
+      </div>
+      <div class="cal-card">
+        <div class="dow-row">
+          <div class="dow">日</div><div class="dow">月</div><div class="dow">火</div>
+          <div class="dow">水</div><div class="dow">木</div><div class="dow">金</div><div class="dow">土</div>
+        </div>
+        <div class="days-grid" id="cal-days"></div>
+      </div>
+
+      <div class="day-panel" id="day-panel">
+        <div class="dp-hdr">
+          <span class="dp-date" id="dp-date"></span>
+          <button class="dp-close" onclick="closeDayPanel()">✕</button>
+        </div>
+        <div id="dp-content"></div>
+      </div>
+
+      <button class="add-btn" onclick="goScreen('add')">＋ 課題を追加する</button>
+      <div class="sec-label">今後の課題</div>
+      <div id="cal-task-list"></div>
+    </div>
+
+    <div class="screen" id="scr-add">
+      <div class="form-card">
+        <div class="fsec-title">課題の内容</div>
+        <div class="fgroup">
+          <label class="flabel">課題のタイトル</label>
+          <input class="finput" id="task-title" type="text" placeholder="例：英語 エッセイ提出">
+        </div>
+        <div class="fgroup">
+          <div class="flabel-row">
+            <label class="flabel">科目</label>
+            <button class="edit-link" onclick="openSubjMgr()">✏️ 編集</button>
+          </div>
+          <select class="fselect" id="subj-sel" onchange="onSubjChange(this)">
+            <option value="">科目を選択</option>
+            <option>英語</option><option>数学</option><option>国語</option>
+            <option>日本史</option><option>理科</option>
+            <option value="__other__">その他（入力する）</option>
+          </select>
+          <div class="custom-wrap" id="custom-wrap">
+            <input class="finput" id="custom-input" type="text" placeholder="科目名を入力（例：倫理、体育）" oninput="onCustomInput(this)">
+            <div class="save-prompt" id="save-prompt">
+              <div class="save-prompt-title">📚 この科目を保存しますか？</div>
+              <div class="save-prompt-sub">保存すると次回から選択できます</div>
+              <div class="save-btns">
+                <button class="save-yes" onclick="saveSubj()">保存する</button>
+                <button class="save-no"  onclick="dismissSave()">今回だけ</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="fgroup">
+          <label class="flabel">いつまで（日）</label>
+          <input class="finput" id="task-date" type="date">
+        </div>
+        <div class="fgroup">
+          <label class="flabel">何時まで（任意）</label>
+          <input class="finput" id="task-time" type="time">
+        </div>
+        <div class="fgroup">
+          <label class="flabel">カレンダーの色</label>
+          <div class="color-row">
+            <div class="cchip on" data-color="#4f86e8" style="background:#4f86e8" onclick="pickColor(this)"></div>
+            <div class="cchip"    data-color="#f47171" style="background:#f47171" onclick="pickColor(this)"></div>
+            <div class="cchip"    data-color="#34c79a" style="background:#34c79a" onclick="pickColor(this)"></div>
+            <div class="cchip"    data-color="#f7b955" style="background:#f7b955" onclick="pickColor(this)"></div>
+            <div class="cchip"    data-color="#a87de8" style="background:#a87de8" onclick="pickColor(this)"></div>
+            <div class="cchip"    data-color="#f48fb8" style="background:#f48fb8" onclick="pickColor(this)"></div>
+          </div>
+        </div>
+      </div>
+      <div class="form-card">
+        <div class="fsec-title">リマインド設定</div>
+        <div class="fgroup">
+          <label class="flabel">通知タイミング</label>
+          <div class="rchips">
+            <div class="rchip on" onclick="pickRem(this)">前日</div>
+            <div class="rchip"    onclick="pickRem(this)">3日前</div>
+            <div class="rchip"    onclick="pickRem(this)">1週間前</div>
+            <div class="rchip"    onclick="pickRem(this)">自分で設定</div>
+          </div>
+        </div>
+        <div class="fgroup">
+          <label class="flabel">繰り返し</label>
+          <div class="repchips">
+            <div class="repchip on" onclick="pickRep(this)">なし</div>
+            <div class="repchip"    onclick="pickRep(this)">毎日</div>
+            <div class="repchip"    onclick="pickRep(this)">毎週</div>
+            <div class="repchip"    onclick="pickRep(this)">毎月</div>
+          </div>
+        </div>
+        <div class="fgroup">
+          <label class="flabel">メモ（任意）</label>
+          <textarea class="ftextarea" id="task-memo" placeholder="補足メモ..."></textarea>
+        </div>
+      </div>
+      <button class="submit-btn" onclick="submitTask()">✓ 追加する</button>
+    </div>
+
+    <div class="screen" id="scr-list">
+      <div id="list-content"></div>
+    </div>
+
+  </div>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn on" id="nav-cal" onclick="goScreen('cal')">
+      <span class="nav-icon">📅</span><span class="nav-label">カレンダー</span>
+    </button>
+    <button class="nav-btn" id="nav-add" onclick="goScreen('add')">
+      <span class="nav-icon">➕</span><span class="nav-label">追加</span>
+    </button>
+    <button class="nav-btn" id="nav-list" onclick="goScreen('list')">
+      <span class="nav-icon">📋</span><span class="nav-label">一覧</span>
+    </button>
+  </nav>
+
+</div>
+
+<div class="modal-overlay" id="subj-modal">
+  <div class="modal-sheet">
+    <div class="modal-hdr">
+      <div class="modal-title">科目を管理</div>
+      <button class="modal-close" onclick="closeSubjMgr()">✕</button>
+    </div>
+    <div id="subj-list"></div>
+  </div>
+</div>
+
+<div class="celebrate" id="celebrate">
+  <div class="confetti" id="confetti"></div>
+  <div class="cel-emoji" id="cel-emoji">🎉</div>
+  <div class="cel-title" id="cel-title">お疲れ様！</div>
+  <div class="cel-sub"   id="cel-sub">完了！</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var taskSeq = 0;
+var tasks = [
+  { id:'t-eng',  title:'英語 エッセイ',     subj:'英語',   due:'2026-05-28', color:'#f47171', status:'active' },
+  { id:'t-jpn',  title:'国語 課題',         subj:'国語',   due:'2026-05-30', color:'#f47171', status:'active' },
+  { id:'t-math', title:'数学 ワーク提出',   subj:'数学',   due:'2026-06-03', color:'#4f86e8', status:'active' },
+  { id:'t-sci',  title:'理科 実験レポート', subj:'理科',   due:'2026-06-04', color:'#34c79a', status:'active' },
+  { id:'t-his',  title:'日本史 レポート',   subj:'日本史', due:'2026-06-15', color:'#a87de8', status:'active' }
+];
+
+function escapeHtml(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function pad(n){ return String(n).padStart(2,'0'); }
+
+function goScreen(name) {
+  var screens = document.querySelectorAll('.screen');
+  for (var i=0;i<screens.length;i++) screens[i].classList.remove('on');
+  var navs = document.querySelectorAll('.nav-btn');
+  for (var j=0;j<navs.length;j++) navs[j].classList.remove('on');
+  document.getElementById('scr-' + name).classList.add('on');
+  document.getElementById('nav-' + name).classList.add('on');
+  document.getElementById('filter-bar').classList.toggle('visible', name === 'list');
+  document.querySelector('.screens').scrollTop = 0;
+  if (name === 'cal') { renderCalTasks(); updateGreeting(); }
+  if (name === 'list') rebuildList();
+}
+
+function getNextTask() {
+  var active = tasks.filter(function(t){ return t.status !== 'done'; })
+                    .sort(function(a,b){ return new Date(a.due) - new Date(b.due); });
+  return active.length ? active[0] : null;
+}
+
+function updateGreeting() {
+  var hour = new Date().getHours();
+  var hi;
+  if (hour < 5)       hi = 'こんな時間まで頑張ってるね🌙';
+  else if (hour < 11) hi = 'おはよう！今日も一日がんばろう☀️';
+  else if (hour < 17) hi = 'こんにちは！お疲れ様🌿';
+  else if (hour < 22) hi = 'こんばんは！今日もよく頑張ったね🌟';
+  else                hi = '夜ふかし注意だよ〜🌙';
+  document.getElementById('greet-hi').textContent = hi;
+
+  var next = getNextTask();
+  var msgEl  = document.getElementById('greet-msg');
+  var wrap   = document.getElementById('next-task-wrap');
+
+  if (!next) {
+    msgEl.textContent = '課題は全部おわったよ！すごい〜！🎉';
+    wrap.innerHTML = '';
+    return;
+  }
+
+  var info = dueInfo(next.due);
+  var dueColor, urge;
+  if (info.diff < 0)        { dueColor='#d14545'; urge='過ぎちゃってる！急ごう🔥'; }
+  else if (info.diff === 0) { dueColor='#d14545'; urge='今日が締め切りだよ！がんばって🔥'; }
+  else if (info.diff === 1) { dueColor='#d14545'; urge='明日まで！ラストスパート💪'; }
+  else if (info.diff <= 3)  { dueColor='#c4862a'; urge='そろそろ取りかかろう〜！'; }
+  else                      { dueColor='#3a6bc4'; urge='いちばん近い締め切りはこれだよ📌'; }
+  msgEl.textContent = urge;
+
+  wrap.innerHTML =
+    '<div class="next-task" style="border-left-color:'+next.color+'" onclick="jumpToTask(\''+next.id+'\')">'+
+    '<div class="next-task-body">'+
+    '<div class="next-task-label">📌 つぎの締め切り</div>'+
+    '<div class="next-task-title">'+escapeHtml(next.title)+'</div></div>'+
+    '<div class="next-task-due" style="color:'+dueColor+'">'+info.text+'</div></div>';
+}
+
+function jumpToTask(id) {
+  var t = tasks.filter(function(x){ return x.id === id; })[0];
+  if (!t) return;
+  var p = t.due.split('-');
+  cy = Number(p[0]); cm = Number(p[1]);
+  renderCal();
+  selectDay(Number(p[2]));
+  var panel = document.getElementById('day-panel');
+  if (panel) panel.scrollIntoView({ behavior:'smooth', block:'center' });
+}
+
+var cy = 2026, cm = 6;
+var selectedKey = null;
+
+function renderCal() {
+  var title = document.getElementById('month-title');
+  var grid  = document.getElementById('cal-days');
+  if (!title || !grid) return;
+  title.textContent = cy + '年' + cm + '月';
+  grid.innerHTML = '';
+  var first = new Date(cy, cm-1, 1).getDay();
+  var total = new Date(cy, cm, 0).getDate();
+  var prev  = new Date(cy, cm-1, 0).getDate();
+  var today = new Date();
+
+  var dotMap = {};
+  tasks.forEach(function(t){
+    if (t.status === 'done') return;
+    var parts = t.due.split('-');
+    var y = Number(parts[0]), mo = Number(parts[1]), d = Number(parts[2]);
+    if (y === cy && mo === cm) { if(!dotMap[d]) dotMap[d]=[]; dotMap[d].push(t.color); }
+  });
+
+  var i;
+  for (i = first-1; i >= 0; i--) {
+    var od = document.createElement('div');
+    od.className = 'cday other';
+    od.innerHTML = '<span class="dnum">' + (prev-i) + '</span>';
+    grid.appendChild(od);
+  }
+  for (var d = 1; d <= total; d++) {
+    var date = new Date(cy, cm-1, d);
+    var dow  = date.getDay();
+    var cls = 'cday';
+    if (dow===0) cls += ' sun';
+    if (dow===6) cls += ' sat';
+    if (date.getFullYear()===today.getFullYear() && date.getMonth()===today.getMonth() && date.getDate()===today.getDate()) cls += ' today';
+    var key = cy + '-' + cm + '-' + d;
+    if (key === selectedKey) cls += ' selected';
+    var cell = document.createElement('div');
+    cell.className = cls;
+    var dots = '';
+    if (dotMap[d]) dotMap[d].forEach(function(c){ dots += '<div class="ddot" style="background:'+c+'"></div>'; });
+    cell.innerHTML = '<span class="dnum">'+d+'</span><div class="ddots">'+dots+'</div>';
+    (function(dd){ cell.addEventListener('click', function(){ selectDay(dd); }); })(d);
+    grid.appendChild(cell);
+  }
+  var rem = (first+total)%7===0 ? 0 : 7-(first+total)%7;
+  for (i = 1; i <= rem; i++) {
+    var nd = document.createElement('div');
+    nd.className = 'cday other';
+    nd.innerHTML = '<span class="dnum">'+i+'</span>';
+    grid.appendChild(nd);
+  }
+}
+
+function selectDay(d) {
+  var key = cy + '-' + cm + '-' + d;
+  if (selectedKey === key) { closeDayPanel(); return; }
+  selectedKey = key;
+  renderCal();
+
+  var dateStr = pad(cy) + '-' + pad(cm) + '-' + pad(d);
+  var dayTasks = tasks.filter(function(t){ return t.due === dateStr; })
+                      .sort(function(a,b){ return (a.status==='done') - (b.status==='done'); });
+  var dow = ['日','月','火','水','木','金','土'][new Date(cy, cm-1, d).getDay()];
+  document.getElementById('dp-date').textContent = cm + '月' + d + '日（' + dow + '）';
+
+  var content = document.getElementById('dp-content');
+  if (dayTasks.length === 0) {
+    content.innerHTML =
+      '<div class="dp-empty"><div class="dp-empty-emoji">🍃</div>'+
+      '<div class="dp-empty-txt">この日の課題はないよ</div></div>'+
+      '<button class="dp-add" onclick="addForSelectedDay()">＋ この日に課題を追加</button>';
+  } else {
+    var html = '';
+    dayTasks.forEach(function(t){
+      var done = t.status === 'done';
+      html +=
+        '<div class="dp-task" style="border-left-color:'+(done?'#34c79a':t.color)+'">'+
+        '<div class="dp-task-dot" style="background:'+t.color+'"></div>'+
+        '<div class="dp-task-body"><div class="dp-task-title" style="'+(done?'text-decoration:line-through;color:#7c8699':'')+'">'+escapeHtml(t.title)+'</div>'+
+        (t.subj ? '<div class="dp-task-sub">'+escapeHtml(t.subj)+(done?'・完了済み ✓':'')+'</div>' : (done?'<div class="dp-task-sub">完了済み ✓</div>':''))+
+        '</div></div>';
+    });
+    html += '<button class="dp-add" onclick="addForSelectedDay()">＋ この日に課題を追加</button>';
+    content.innerHTML = html;
+  }
+  document.getElementById('day-panel').classList.add('visible');
+}
+
+function addForSelectedDay() {
+  goScreen('add');
+  if (selectedKey) {
+    var p = selectedKey.split('-');
+    document.getElementById('task-date').value = pad(Number(p[0]))+'-'+pad(Number(p[1]))+'-'+pad(Number(p[2]));
+  }
+}
+
+function closeDayPanel() {
+  selectedKey = null;
+  document.getElementById('day-panel').classList.remove('visible');
+  renderCal();
+}
+
+function changeMonth(delta) {
+  cm += delta;
+  if (cm > 12) { cm=1; cy++; }
+  if (cm < 1)  { cm=12; cy--; }
+  closeDayPanel();
+  renderCal();
+}
+
+function dueInfo(due) {
+  var today = new Date(); today.setHours(0,0,0,0);
+  var dt = new Date(due); dt.setHours(0,0,0,0);
+  var diff = Math.round((dt - today) / 86400000);
+  var p = due.split('-');
+  var md = Number(p[1]) + '/' + Number(p[2]);
+  var text;
+  if (diff < 0)        text='期限切れ';
+  else if (diff === 0) text='今日まで';
+  else if (diff === 1) text='明日まで';
+  else if (diff <= 7)  text='あと'+diff+'日';
+  else                 text=md+'まで';
+  var lbadge;
+  if (diff <= 1) lbadge='soon';
+  else if (diff <= 7) lbadge='week';
+  else lbadge='ok';
+  return { diff: diff, md: md, text: text, lbadge: lbadge };
+}
+
+function hexToSoft(hex) {
+  var h = hex.replace('#','');
+  var r = parseInt(h.substring(0,2),16);
+  var g = parseInt(h.substring(2,4),16);
+  var b = parseInt(h.substring(4,6),16);
+  return 'rgba('+r+','+g+','+b+',0.15)';
+}
+
+function renderCalTasks() {
+  var wrap = document.getElementById('cal-task-list');
+  wrap.innerHTML = '';
+  var active = tasks.filter(function(t){ return t.status !== 'done'; })
+                    .sort(function(a,b){ return new Date(a.due) - new Date(b.due); });
+  if (active.length === 0) {
+    wrap.innerHTML = '<div style="text-align:center;color:#7c8699;font-size:13px;padding:18px">課題はぜんぶ完了！おつかれさま 🎉</div>';
+    return;
+  }
+  active.forEach(function(t){
+    var info = dueInfo(t.due);
+    var card = document.createElement('div');
+    card.className = 'tcard';
+    card.style.borderLeftColor = t.color;
+    card.innerHTML =
+      '<div class="tcard-body"><div class="tcard-title">'+escapeHtml(t.title)+'</div>'+
+      '<div class="tcard-meta">'+
+      '<span class="badge" style="background:'+hexToSoft(t.color)+';color:'+t.color+'">'+info.text+'</span>'+
+      (t.subj ? '<span style="font-size:11px;color:#7c8699">'+escapeHtml(t.subj)+'</span>' : '')+
+      '<span style="font-size:11px;color:#7c8699">'+info.md+'</span></div></div>'+
+      '<div class="tchk"></div>';
+    card.querySelector('.tchk').addEventListener('click', function(e){
+      e.stopPropagation();
+      this.classList.add('done');
+      t.status = 'done';
+      showCelebrate(t.title);
+      renderCal(); updateGreeting();
+      if (selectedKey) { var dd = Number(selectedKey.split('-')[2]); selectedKey=null; selectDay(dd); }
+      setTimeout(renderCalTasks, 1600);
+    });
+    wrap.appendChild(card);
+  });
+}
+
+function rebuildList() {
+  var root = document.getElementById('list-content');
+  root.innerHTML = '';
+  var groups = {
+    soon: { title:'締切間近',   items:[] },
+    week: { title:'1週間以内',  items:[] },
+    ok:   { title:'1週間以降',  items:[] },
+    done: { title:'完了済み',   items:[] }
+  };
+  tasks.forEach(function(t){
+    if (t.status === 'done') { groups.done.items.push(t); return; }
+    groups[dueInfo(t.due).lbadge].items.push(t);
+  });
+
+  var any = false;
+  ['soon','week','ok','done'].forEach(function(k){
+    var g = groups[k];
+    if (g.items.length === 0) return;
+    any = true;
+    var sec = document.createElement('div');
+    sec.className = 'lsec';
+    sec.innerHTML = '<div class="lsec-hdr"><span class="lsec-title">'+g.title+'</span><span class="lsec-cnt">'+g.items.length+'</span></div>';
+    g.items.sort(function(a,b){ return new Date(a.due)-new Date(b.due); }).forEach(function(t){
+      var info = dueInfo(t.due);
+      var item = document.createElement('div');
+      var isDone = t.status === 'done';
+      item.className = 'litem' + (isDone ? ' done' : '');
+      item.style.borderLeftColor = isDone ? '#34c79a' : t.color;
+      item.setAttribute('data-status', t.status);
+      item.setAttribute('data-subj', t.subj || '');
+      item.setAttribute('data-due', t.due);
+      var badge = isDone ? '' : '<span class="lbadge '+info.lbadge+'">'+info.text+'</span>';
+      var subjB = t.subj ? '<span class="lbadge subj">'+escapeHtml(t.subj)+'</span>' : '';
+      item.innerHTML =
+        '<div class="lichk'+(isDone?' done':'')+'"></div>'+
+        '<div class="li-body"><div class="li-title">'+escapeHtml(t.title)+'</div>'+
+        '<div class="li-meta">'+badge+subjB+'</div></div>';
+      item.querySelector('.lichk').addEventListener('click', function(e){
+        e.stopPropagation();
+        t.status = (t.status === 'done') ? 'active' : 'done';
+        if (t.status === 'done') showCelebrate(t.title);
+        renderCal(); rebuildList(); updateGreeting();
+      });
+      sec.appendChild(item);
+    });
+    root.appendChild(sec);
+  });
+
+  if (!any) {
+    root.innerHTML = '<div class="list-empty"><div class="list-empty-emoji">📭</div><div class="list-empty-txt">課題はまだないよ。追加してみよう！</div></div>';
+  }
+  var chip = document.querySelector('.fchip.on');
+  if (chip) applyFilter(chip.textContent.trim());
+}
+
+function setFilter(el, name) {
+  var chips = document.querySelectorAll('.fchip');
+  for (var i=0;i<chips.length;i++) chips[i].classList.remove('on');
+  el.classList.add('on');
+  applyFilter(name);
+}
+function applyFilter(f) {
+  var today = new Date(); today.setHours(0,0,0,0);
+  var items = document.querySelectorAll('#scr-list .litem');
+  for (var i=0;i<items.length;i++) {
+    var item = items[i];
+    var st  = item.getAttribute('data-status');
+    var sbj = item.getAttribute('data-subj') || '';
+    var due = item.getAttribute('data-due');
+    var show = false;
+    if (f === 'すべて')   show = true;
+    else if (f === '未完了')  show = st !== 'done';
+    else if (f === '完了済み') show = st === 'done';
+    else if (f === '今週') {
+      if (st === 'done') show = false;
+      else if (due) { var diff=(new Date(due)-today)/86400000; show = diff <= 7; }
+      else show = true;
+    } else show = sbj === f;
+    item.style.display = show ? '' : 'none';
+  }
+  var secs = document.querySelectorAll('#scr-list .lsec');
+  for (var s=0;s<secs.length;s++) {
+    var inner = secs[s].querySelectorAll('.litem');
+    var vis = false;
+    for (var k=0;k<inner.length;k++) if (inner[k].style.display !== 'none') vis = true;
+    secs[s].style.display = vis ? '' : 'none';
+  }
+}
+
+var selectedColor = '#4f86e8';
+function pickColor(el) {
+  var chips = document.querySelectorAll('.cchip');
+  for (var i=0;i<chips.length;i++) chips[i].classList.remove('on');
+  el.classList.add('on');
+  selectedColor = el.getAttribute('data-color');
+}
+function pickRem(el) { var c=document.querySelectorAll('.rchip'); for(var i=0;i<c.length;i++)c[i].classList.remove('on'); el.classList.add('on'); }
+function pickRep(el) { var c=document.querySelectorAll('.repchip'); for(var i=0;i<c.length;i++)c[i].classList.remove('on'); el.classList.add('on'); }
+
+function resetForm() {
+  document.getElementById('task-title').value = '';
+  document.getElementById('task-date').value = '';
+  document.getElementById('task-time').value = '';
+  document.getElementById('task-memo').value = '';
+  var sel = document.getElementById('subj-sel');
+  sel.value = '';
+  document.getElementById('custom-wrap').classList.remove('visible');
+  document.getElementById('save-prompt').classList.remove('visible');
+  var chips = document.querySelectorAll('.cchip');
+  for (var i=0;i<chips.length;i++) chips[i].classList.toggle('on', i===0);
+  selectedColor = '#4f86e8';
+}
+
+function submitTask() {
+  var title = document.getElementById('task-title').value.trim();
+  var sel = document.getElementById('subj-sel');
+  var subjName = sel.value;
+  if (sel.value === '__other__') subjName = document.getElementById('custom-input').value.trim();
+  var dateVal = document.getElementById('task-date').value;
+
+  if (!title)   { showToast('⚠️ タイトルを入力してね'); return; }
+  if (!dateVal) { showToast('⚠️ 期限の日付を選んでね'); return; }
+
+  tasks.push({ id:'new-'+(taskSeq++), title:title, subj:subjName||'', due:dateVal, color:selectedColor, status:'active' });
+
+  var p = dateVal.split('-');
+  cy = Number(p[0]); cm = Number(p[1]);
+  closeDayPanel();
+  renderCal(); renderCalTasks(); rebuildList(); updateGreeting();
+
+  showToast('📚 課題を追加したよ！');
+  resetForm();
+  setTimeout(function(){ goScreen('cal'); }, 800);
+}
+
+var savedSubjs = ['英語','数学','国語','日本史','理科'];
+var customTimer = null;
+
+function onSubjChange(sel) {
+  var wrap = document.getElementById('custom-wrap');
+  if (sel.value === '__other__') {
+    wrap.classList.add('visible');
+    document.getElementById('custom-input').value = '';
+    document.getElementById('save-prompt').classList.remove('visible');
+  } else wrap.classList.remove('visible');
+}
+function onCustomInput(inp) {
+  clearTimeout(customTimer);
+  var prompt = document.getElementById('save-prompt');
+  if (inp.value.trim().length >= 2) {
+    customTimer = setTimeout(function(){
+      if (savedSubjs.indexOf(inp.value.trim()) === -1) prompt.classList.add('visible');
+    }, 1000);
+  } else prompt.classList.remove('visible');
+}
+function saveSubj() {
+  var inp  = document.getElementById('custom-input');
+  var name = inp.value.trim();
+  if (!name || savedSubjs.indexOf(name) !== -1) return;
+  savedSubjs.push(name);
+  var sel = document.getElementById('subj-sel');
+  var other = null, opts = sel.options;
+  for (var i=0;i<opts.length;i++) if (opts[i].value === '__other__') other = opts[i];
+  var opt = document.createElement('option');
+  opt.value = name; opt.textContent = name;
+  sel.insertBefore(opt, other);
+  sel.value = name;
+  document.getElementById('custom-wrap').classList.remove('visible');
+  document.getElementById('save-prompt').classList.remove('visible');
+  showToast('📚「' + name + '」を保存したよ！');
+}
+function dismissSave() { document.getElementById('save-prompt').classList.remove('visible'); }
+
+function openSubjMgr() {
+  var list = document.getElementById('subj-list');
+  list.innerHTML = '';
+  savedSubjs.forEach(function(name){
+    var row = document.createElement('div');
+    row.className = 'subj-row';
+    row.innerHTML = '<span class="subj-name">' + name + '</span><button class="sdel-btn" onclick="delSubj(\'' + name + '\',this)">削除</button>';
+    list.appendChild(row);
+  });
+  document.getElementById('subj-modal').classList.add('visible');
+}
+function closeSubjMgr() { document.getElementById('subj-modal').classList.remove('visible'); }
+function delSubj(name, btn) {
+  var row = btn.closest('.subj-row');
+  row.style.transition = 'opacity 0.25s, transform 0.25s';
+  row.style.opacity = '0'; row.style.transform = 'translateX(20px)';
+  setTimeout(function(){
+    savedSubjs = savedSubjs.filter(function(s){ return s !== name; });
+    var sel = document.getElementById('subj-sel');
+    var opts = sel.options;
+    for (var i=opts.length-1;i>=0;i--) if (opts[i].value===name || opts[i].textContent===name) sel.remove(i);
+    row.remove();
+    showToast('🗑️「' + name + '」を削除したよ');
+  }, 250);
+}
+
+/* 課題完了後：励ましメッセージ10パターン＋それぞれの絵文字 */
+var celItems = [
+  { emoji:'🎉', msg:'おつかれさま！えらい' },
+  { emoji:'💯', msg:'よくがんばったね！' },
+  { emoji:'⭐', msg:'やったね！ひとつクリア' },
+  { emoji:'💪', msg:'ナイス！その調子だよ' },
+  { emoji:'🎊', msg:'かんぺき！さすがだね' },
+  { emoji:'😻', msg:'すごい！うれしいニャ' },
+  { emoji:'🍵', msg:'ひとつ片付いたね！ゆっくり休も' },
+  { emoji:'📣', msg:'がんばり屋さん！応援してるよ' },
+  { emoji:'🚀', msg:'お見事！この勢いでいこう' },
+  { emoji:'✨', msg:'今日のきみ、最高だよ' }
+];
+function showCelebrate(taskName) {
+  var pick = celItems[Math.floor(Math.random()*celItems.length)];
+  document.getElementById('cel-emoji').textContent = pick.emoji;
+  document.getElementById('cel-title').textContent = pick.msg;
+  document.getElementById('cel-sub').textContent   = '「' + taskName + '」を完了！';
+  var con = document.getElementById('confetti');
+  con.innerHTML = '';
+  var cols = ['#4f86e8','#f7b955','#34c79a','#f47171','#a87de8','#f48fb8'];
+  for (var i = 0; i < 32; i++) {
+    var p = document.createElement('div');
+    p.className = 'cp';
+    p.style.cssText = 'left:'+Math.random()*100+'%;top:0;background:'+cols[i%cols.length]+';animation-delay:'+Math.random()*0.4+'s;animation-duration:'+(0.9+Math.random()*0.5)+'s';
+    con.appendChild(p);
+  }
+  var el = document.getElementById('celebrate');
+  el.classList.add('visible');
+  setTimeout(function(){ el.classList.remove('visible'); }, 1900);
+}
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('visible');
+  setTimeout(function(){ t.classList.remove('visible'); }, 2200);
+}
+
+renderCal();
+renderCalTasks();
+rebuildList();
+updateGreeting();
+</script>
+</body>
+</html>
+
